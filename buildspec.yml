@@ -25,4 +25,4 @@ phases:
 artifacts:
   files:
    - imagedefinitions.json
-   - target/resttest.jar
+   - target/restapitest-0.0.1-SNAPSHOT.jar
