@@ -22,7 +22,7 @@ phases:
       - echo Writing image definitions file...
       - printf '[{"name":"resttest","imageUri":"%s"}]' $REPOSITORY_URI:$IMAGE_TAG > imagedefinitions.json
       - cat imagedefinitions.json
+
 artifacts:
   files:
-   - imagedefinitions.json
-   - target/restapitest-0.0.1-SNAPSHOT.jar
+    - imagedefinitions.json
