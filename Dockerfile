@@ -1,9 +1,17 @@
-FROM openjdk:8-jdk-alpine
-VOLUME /tmp
-ARG JAVA_OPTS
-ENV JAVA_OPTS=$JAVA_OPTS
-COPY target/restapitest-0.0.1-SNAPSHOT.jar awstest.jar
-EXPOSE 8080
-ENTRYPOINT exec java $JAVA_OPTS -jar awstest.jar
-# For Spring-Boot project, use the entrypoint below to reduce Tomcat startup time.
-ENTRYPOINT exec java $JAVA_OPTS -Djava.security.egd=file:/dev/./urandom -jar awstest.jar
+# Use an official Maven image as the base image
+FROM maven:3.8.4-openjdk-11-slim AS build
+# Set the working directory in the container
+WORKDIR /app
+# Copy the pom.xml and the project files to the container
+COPY pom.xml .
+COPY src ./src
+# Build the application using Maven
+RUN mvn clean package -DskipTests
+# Use an official OpenJDK image as the base image
+FROM openjdk:11-jre-slim
+# Set the working directory in the container
+WORKDIR /app
+# Copy the built JAR file from the previous stage to the container
+COPY - from=build /app/target/my-application.jar .
+# Set the command to run the application
+CMD ["java", "-jar", "my-application.jar"]
