@@ -4,9 +4,9 @@ env:
   variables:
     APP_NAME: "my-spring-boot-app"
     AWS_REGION: "us-east-1"
-    ECR_REPOSITORY_URI: "426065088228.dkr.ecr.us-east-1.amazonaws.com/sprintbootapitest"
-    ECS_CLUSTER_NAME: "RestAPITEST"
-    ECS_SERVICE_NAME: "RestApiTestService"
+    ECR_REPOSITORY_URI: "426065088228.dkr.ecr.us-east-1.amazonaws.com/newrepo"
+    ECS_CLUSTER_NAME: "Demoo"
+    ECS_SERVICE_NAME: "demoop"
   parameter-store:
     AWS_ACCESS_KEY_ID: "/CodeBuild/ACCESS_KEY_ID"
     AWS_SECRET_ACCESS_KEY: "/CodeBuild/SECRET_ACCESS_KEY"
@@ -14,7 +14,7 @@ env:
 phases:
   install:
     runtime-versions:
-      java: corretto17
+      java: corretto8
     commands:
       - echo "Installing dependencies..."
       - apt-get update -y
