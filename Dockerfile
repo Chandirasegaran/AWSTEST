@@ -1,4 +1,15 @@
-FROM openjdk:8-jdk-alpine as deps
+# Use the specified JDK version
+FROM openjdk:17-jdk-jammy
+
+# Define the volume and environment variables
+VOLUME /tmp
+ARG JAVA_OPTS
+ENV JAVA_OPTS=$JAVA_OPTS
+
+################################################################################
+
+# Create a stage for resolving and downloading dependencies.
+FROM maven:3.8.4-jdk-17 AS deps
 
 WORKDIR /build
 
@@ -15,6 +26,7 @@ RUN --mount=type=bind,source=pom.xml,target=pom.xml \
 
 ################################################################################
 
+# Create a stage for building the application based on the stage with downloaded dependencies.
 FROM deps as package
 
 WORKDIR /build
@@ -27,13 +39,27 @@ RUN --mount=type=bind,source=pom.xml,target=pom.xml \
 
 ################################################################################
 
-FROM openjdk:8-jdk-alpine AS final
+# Create a stage for extracting the application into separate layers.
+# Take advantage of Spring Boot's layer tools and Docker's caching by extracting
+# the packaged application into separate layers that can be copied into the final stage.
+# See Spring's docs for reference:
+# https://docs.spring.io/spring-boot/docs/current/reference/html/container-images.html
+FROM package as extract
 
-VOLUME /tmp
-ARG JAVA_OPTS
-ENV JAVA_OPTS=$JAVA_OPTS
+WORKDIR /build
+
+RUN java -Djarmode=layertools -jar target/app.jar extract --destination target/extracted
+
+################################################################################
+
+# Create a new stage for running the application that contains the minimal
+# runtime dependencies for the application. This often uses a different base
+# image from the install or build stage where the necessary files are copied
+# from the install stage.
+FROM openjdk:17-jre-jammy AS final
 
 # Create a non-privileged user that the app will run under.
+# See https://docs.docker.com/go/dockerfile-user-best-practices/
 ARG UID=10001
 RUN adduser \
     --disabled-password \
@@ -45,8 +71,12 @@ RUN adduser \
     appuser
 USER appuser
 
-COPY --from=package /build/target/app.jar app.jar
+# Copy the executable from the "package" stage.
+COPY --from=extract build/target/extracted/dependencies/ ./
+COPY --from=extract build/target/extracted/spring-boot-loader/ ./
+COPY --from=extract build/target/extracted/snapshot-dependencies/ ./
+COPY --from=extract build/target/extracted/application/ ./
 
 EXPOSE 8080
 
-ENTRYPOINT exec java $JAVA_OPTS -Djava.security.egd=file:/dev/./urandom -jar app.jar
+ENTRYPOINT [ "java", "org.springframework.boot.loader.launch.JarLauncher" ]
