@@ -3,7 +3,7 @@ Resources:
   - TargetService:
       Type: AWS::ECS::Service
       Properties:
-        TaskDefinition: "arn:aws:ecs:us-east-1:426065088228:task-definition/RestAPITestTask:2"
+        TaskDefinition: "arn:aws:ecs:us-east-1:426065088228:task-definition/DEMOO:1"  
         LoadBalancerInfo:
-          ContainerName: "RestApiTestContainer"
-          ContainerPort: 8080          
+          ContainerName: "demooo"
+          ContainerPort: 8080:8080

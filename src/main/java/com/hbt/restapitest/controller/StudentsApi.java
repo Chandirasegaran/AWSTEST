@@ -21,7 +21,7 @@ public class StudentsApi {
     @PutMapping
     public String updateStudentsDetails(@RequestBody StudentsDetails studentsDetails){
         this.studentsDetails=studentsDetails;
-        return "Students Details Updated Successfully!";
+        return "Students Details Updated Successfully!!";
     }
 
     @DeleteMapping

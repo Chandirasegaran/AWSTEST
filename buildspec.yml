@@ -21,22 +21,26 @@ phases:
       - apt-get install -y jq
   pre_build:
     commands:
-      - echo "Logging into Amazon ECR..."
-      - aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 426065088228.dkr.ecr.us-east-1.amazonaws.com
+      - mvn clean install
+      - echo Logging in to Amazon ECR...
+      - aws --version
+      # - aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 426065088228.dkr.ecr.us-east-1.amazonaws.com
+      - REPOSITORY_URI=426065088228.dkr.ecr.us-east-1.amazonaws.com/newrepo
       - COMMIT_HASH=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-7)
-      - IMAGE_TAG=${COMMIT_HASH:=latest}
+      - IMAGE_TAG=build-$(echo $CODEBUILD_BUILD_ID | awk -F":" '{print $2}')
   build:
     commands:
-      - echo "Building Spring Boot application..."
-      - mvn package
-      - docker build -t $ECR_REPOSITORY_URI:$IMAGE_TAG .
-  post_build:
-    commands:
-      - echo "Pushing Docker image to ECR..."
-      - docker push $ECR_REPOSITORY_URI:$IMAGE_TAG
-      - printf '[{"name":"%s","imageUri":"%s"}]' "$APP_NAME" "$ECR_REPOSITORY_URI:$IMAGE_TAG" > imagedefinitions.json
+      - echo Build started on `date`
+      - echo Building the Docker image...
+      - docker build -t $REPOSITORY_URI:latest -f Dockerfile .
+      - docker tag $REPOSITORY_URI:latest $REPOSITORY_URI:$IMAGE_TAG
+      - echo Pushing the Docker images...
+      - docker push $REPOSITORY_URI:latest
+      - docker push $REPOSITORY_URI:$IMAGE_TAG
+      - echo Writing image definitions file...
+      - printf '[{"name":"resttest","imageUri":"%s"}]' $REPOSITORY_URI:$IMAGE_TAG > imagedefinitions.json
+      - cat imagedefinitions.json
 artifacts:
   files:
-    - imagedefinitions.json
-    - appspec.yml
-    - target/*.jar
+   - imagedefinitions.json
+  #  - target/restapitest-0.0.1-SNAPSHOT.jar
