@@ -1,6 +1,5 @@
 version: 0.2
 
-
 phases:
   pre_build:
     commands:
@@ -11,12 +10,14 @@ phases:
       - REPOSITORY_URI=426065088228.dkr.ecr.us-east-1.amazonaws.com/newrepo
       - COMMIT_HASH=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-7)
       - IMAGE_TAG=build-$(echo $CODEBUILD_BUILD_ID | awk -F":" '{print $2}')
+
   build:
     commands:
       - echo Build started on `date`
       - echo Building the Docker image...
       - docker build -t $REPOSITORY_URI:latest .
       - docker tag $REPOSITORY_URI:latest $REPOSITORY_URI:$IMAGE_TAG
+
   post_build:
     commands:
       - echo Build completed on `date`
@@ -26,7 +27,8 @@ phases:
       - echo Writing image definitions file...
       - printf '[{"name":"resttest","imageUri":"%s"}]' $REPOSITORY_URI:$IMAGE_TAG > imagedefinitions.json
       - cat imagedefinitions.json
+
 artifacts:
   files:
-   - imagedefinitions.json
-   - target/resttest.jar
+    - imagedefinitions.json
+    - target/resttest.jar

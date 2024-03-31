@@ -6,6 +6,7 @@ COPY pom.xml .
 
 RUN --mount=type=bind,source=pom.xml,target=pom.xml \
     --mount=type=cache,target=/root/.m2 ./mvnw dependency:go-offline -DskipTests
+
 FROM deps as package
 
 WORKDIR /build
@@ -13,12 +14,12 @@ WORKDIR /build
 COPY ./src src/
 
 RUN java -Djarmode=layertools -jar target/app.jar extract --destination target/extracted
-FROM eclipse-temurin:17-jre-jammy AS final
-COPY --from=extract build/target/extracted/dependencies/ ./
-COPY --from=extract build/target/extracted/spring-boot-loader/ ./
-COPY --from=extract build/target/extracted/snapshot-dependencies/ ./
-COPY --from=extract build/target/extracted/application/ ./
 
+FROM eclipse-temurin:17-jre-jammy AS final
+COPY --from=package /build/target/extracted/dependencies/ ./
+COPY --from=package /build/target/extracted/spring-boot-loader/ ./
+COPY --from=package /build/target/extracted/snapshot-dependencies/ ./
+COPY --from=package /build/target/extracted/application/ ./
 
 VOLUME /tmp
 ARG JAVA_OPTS
@@ -29,4 +30,3 @@ ENTRYPOINT exec java $JAVA_OPTS -jar app.jar
 # For Spring-Boot project, use the entrypoint below to reduce Tomcat startup time.
 # ENTRYPOINT exec java $JAVA_OPTS -Djava.security.egd=file:/dev/./urandom -jar app.jar
 ENTRYPOINT [ "java", "org.springframework.boot.loader.launch.JarLauncher" ]
-
