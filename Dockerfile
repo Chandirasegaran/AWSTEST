@@ -1,46 +1,88 @@
-# Stage 1: Build stage
-FROM eclipse-temurin:17-jdk-jammy as build
+# syntax=docker/dockerfile:1
 
-WORKDIR /app
+# Comments are provided throughout this file to help you get started.
+# If you need more help, visit the Dockerfile reference guide at
+# https://docs.docker.com/go/dockerfile-reference/
 
-# Copy Maven wrapper and POM
+# Want to help us make this template better? Share your feedback here: https://forms.gle/ybq9Krt8jtBL3iCk7
+
+################################################################################
+
+# Create a stage for resolving and downloading dependencies.
+FROM eclipse-temurin:17-jdk-jammy as deps
+
+WORKDIR /build
+
+# Copy the mvnw wrapper with executable permissions.
 COPY --chmod=0755 mvnw mvnw
 COPY .mvn/ .mvn/
 COPY pom.xml .
 
-# Resolve dependencies
+# Download dependencies as a separate step to take advantage of Docker's caching.
+# Leverage a cache mount to /root/.m2 so that subsequent builds don't have to
+# re-download packages.
 RUN --mount=type=bind,source=pom.xml,target=pom.xml \
     --mount=type=cache,target=/root/.m2 ./mvnw dependency:go-offline -DskipTests
 
-# Copy source code
+################################################################################
+
+# Create a stage for building the application based on the stage with downloaded dependencies.
+FROM deps as package
+
+WORKDIR /build
+
 COPY ./src src/
+RUN --mount=type=bind,source=pom.xml,target=pom.xml \
+    --mount=type=cache,target=/root/.m2 \
+    ./mvnw package -DskipTests && \
+    mv target/$(./mvnw help:evaluate -Dexpression=project.artifactId -q -DforceStdout)-$(./mvnw help:evaluate -Dexpression=project.version -q -DforceStdout).jar target/app.jar
 
-# Build the application
-RUN ./mvnw package
+################################################################################
 
-# Stage 2: Package stage
+# Create a stage for extracting the application into separate layers.
+# Take advantage of Spring Boot's layer tools and Docker's caching by extracting
+# the packaged application into separate layers that can be copied into the final stage.
+# See Spring's docs for reference:
+# https://docs.spring.io/spring-boot/docs/current/reference/html/container-images.html
+FROM package as extract
+
+WORKDIR /build
+
+RUN java -Djarmode=layertools -jar target/app.jar extract --destination target/extracted
+
+################################################################################
+
+# Create a new stage for running the application that contains the minimal
+# runtime dependencies for the application. This often uses a different base
+# image from the install or build stage where the necessary files are copied
+# from the install stage.
+#
+# The example below uses eclipse-turmin's JRE image as the foundation for running the app.
+# By specifying the "17-jre-jammy" tag, it will also use whatever happens to be the
+# most recent version of that tag when you build your Dockerfile.
+# If reproducability is important, consider using a specific digest SHA, like
+# eclipse-temurin@sha256:99cede493dfd88720b610eb8077c8688d3cca50003d76d1d539b0efc8cca72b4.
 FROM eclipse-temurin:17-jre-jammy AS final
 
-WORKDIR /app
+# Create a non-privileged user that the app will run under.
+# See https://docs.docker.com/go/dockerfile-user-best-practices/
+ARG UID=10001
+RUN adduser \
+    --disabled-password \
+    --gecos "" \
+    --home "/nonexistent" \
+    --shell "/sbin/nologin" \
+    --no-create-home \
+    --uid "${UID}" \
+    appuser
+USER appuser
 
-# Copy jar file from build stage
-COPY --from=build /app/target/app.jar app.jar
-
-# Extract layers
-RUN java -Djarmode=layertools -jar app.jar extract --destination target/extracted
-
-# Copy extracted dependencies and application classes
-COPY --from=build /app/target/extracted/dependencies/ ./dependencies/
-COPY --from=build /app/target/extracted/spring-boot-loader/ ./spring-boot-loader/
-COPY --from=build /app/target/extracted/snapshot-dependencies/ ./snapshot-dependencies/
-COPY --from=build /app/target/extracted/application/ ./application/
-
-VOLUME /tmp
-ARG JAVA_OPTS
-ENV JAVA_OPTS=$JAVA_OPTS
+# Copy the executable from the "package" stage.
+COPY --from=extract build/target/extracted/dependencies/ ./
+COPY --from=extract build/target/extracted/spring-boot-loader/ ./
+COPY --from=extract build/target/extracted/snapshot-dependencies/ ./
+COPY --from=extract build/target/extracted/application/ ./
 
 EXPOSE 8080
 
-ENTRYPOINT exec java $JAVA_OPTS -jar app.jar
-# For Spring-Boot project, use the entrypoint below to reduce Tomcat startup time.
-# ENTRYPOINT exec java $JAVA_OPTS -Djava.security.egd=file:/dev/./urandom -jar app.jar
+ENTRYPOINT [ "java", "org.springframework.boot.loader.launch.JarLauncher" ]
