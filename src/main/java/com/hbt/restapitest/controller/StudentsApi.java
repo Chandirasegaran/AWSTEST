@@ -12,6 +12,11 @@ public class StudentsApi {
         return studentsDetails;
     }
 
+    @GetMapping ("hi")
+    public String showHi(){
+        return "Hi Segar";
+    }
+
     @PostMapping
     public String createStudentsDetails(@RequestBody StudentsDetails studentsDetails){
         this.studentsDetails =studentsDetails;
